@@ -1,0 +1,11 @@
+dist: trusty
+
+jobs:
+  include:
+    - stage: build docker image
+      script:
+      - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+      - docker build -t yoneebook .
+      - docker images
+      - docker tag yoneebook $DOCKER_USERNAME/yoneebook
+      - docker push $DOCKER_USERNAME/yoneebook
