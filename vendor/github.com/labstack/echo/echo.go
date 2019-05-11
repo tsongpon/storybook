@@ -8,8 +8,8 @@ Example:
   import (
     "net/http"
 
-    "github.com/labstack/echo/v4"
-    "github.com/labstack/echo/v4/middleware"
+    "github.com/labstack/echo"
+    "github.com/labstack/echo/middleware"
   )
 
   // Handler
@@ -43,7 +43,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdLog "log"
 	"net"
 	"net/http"
@@ -57,21 +56,18 @@ import (
 
 	"github.com/labstack/gommon/color"
 	"github.com/labstack/gommon/log"
-	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
 
 type (
 	// Echo is the top-level framework instance.
 	Echo struct {
-		common
 		StdLogger        *stdLog.Logger
 		colorer          *color.Color
 		premiddleware    []MiddlewareFunc
 		middleware       []MiddlewareFunc
 		maxParam         *int
 		router           *Router
-		routers          map[string]*Router
 		notFoundHandler  HandlerFunc
 		pool             sync.Pool
 		Server           *http.Server
@@ -126,8 +122,10 @@ type (
 	// Map defines a generic map of type `map[string]interface{}`.
 	Map map[string]interface{}
 
-	// Common struct for Echo & Group.
-	common struct{}
+	// i is the interface for Echo and Group.
+	i interface {
+		GET(string, HandlerFunc, ...MiddlewareFunc) *Route
+	}
 )
 
 // HTTP methods
@@ -213,18 +211,17 @@ const (
 	HeaderAccessControlMaxAge           = "Access-Control-Max-Age"
 
 	// Security
-	HeaderStrictTransportSecurity         = "Strict-Transport-Security"
-	HeaderXContentTypeOptions             = "X-Content-Type-Options"
-	HeaderXXSSProtection                  = "X-XSS-Protection"
-	HeaderXFrameOptions                   = "X-Frame-Options"
-	HeaderContentSecurityPolicy           = "Content-Security-Policy"
-	HeaderContentSecurityPolicyReportOnly = "Content-Security-Policy-Report-Only"
-	HeaderXCSRFToken                      = "X-CSRF-Token"
+	HeaderStrictTransportSecurity = "Strict-Transport-Security"
+	HeaderXContentTypeOptions     = "X-Content-Type-Options"
+	HeaderXXSSProtection          = "X-XSS-Protection"
+	HeaderXFrameOptions           = "X-Frame-Options"
+	HeaderContentSecurityPolicy   = "Content-Security-Policy"
+	HeaderXCSRFToken              = "X-CSRF-Token"
 )
 
 const (
 	// Version of Echo
-	Version = "4.1.5"
+	Version = "3.3.10-dev"
 	website = "https://echo.labstack.com"
 	// http://patorjk.com/software/taag/#p=display&f=Small%20Slant&t=Echo
 	banner = `
@@ -272,7 +269,6 @@ var (
 	ErrRendererNotRegistered       = errors.New("renderer not registered")
 	ErrInvalidRedirectCode         = errors.New("invalid redirect status code")
 	ErrCookieNotFound              = errors.New("cookie not found")
-	ErrInvalidCertOrKeyType        = errors.New("invalid cert or key type, must be string or []byte")
 )
 
 // Error handlers
@@ -308,7 +304,6 @@ func New() (e *Echo) {
 		return e.NewContext(nil, nil)
 	}
 	e.router = NewRouter(e)
-	e.routers = map[string]*Router{}
 	return
 }
 
@@ -324,14 +319,9 @@ func (e *Echo) NewContext(r *http.Request, w http.ResponseWriter) Context {
 	}
 }
 
-// Router returns the default router.
+// Router returns router.
 func (e *Echo) Router() *Router {
 	return e.router
-}
-
-// Routers returns the map of host => router.
-func (e *Echo) Routers() map[string]*Router {
-	return e.routers
 }
 
 // DefaultHTTPErrorHandler is the default HTTP error handler. It sends a JSON response
@@ -460,10 +450,10 @@ func (e *Echo) Static(prefix, root string) *Route {
 	if root == "" {
 		root = "." // For security we want to restrict to CWD.
 	}
-	return e.static(prefix, root, e.GET)
+	return static(e, prefix, root)
 }
 
-func (common) static(prefix, root string, get func(string, HandlerFunc, ...MiddlewareFunc) *Route) *Route {
+func static(i i, prefix, root string) *Route {
 	h := func(c Context) error {
 		p, err := url.PathUnescape(c.Param("*"))
 		if err != nil {
@@ -472,28 +462,26 @@ func (common) static(prefix, root string, get func(string, HandlerFunc, ...Middl
 		name := filepath.Join(root, path.Clean("/"+p)) // "/"+ for security
 		return c.File(name)
 	}
+	i.GET(prefix, h)
 	if prefix == "/" {
-		return get(prefix+"*", h)
+		return i.GET(prefix+"*", h)
 	}
-	return get(prefix+"/*", h)
-}
 
-func (common) file(path, file string, get func(string, HandlerFunc, ...MiddlewareFunc) *Route,
-	m ...MiddlewareFunc) *Route {
-	return get(path, func(c Context) error {
-		return c.File(file)
-	}, m...)
+	return i.GET(prefix+"/*", h)
 }
 
 // File registers a new route with path to serve a static file with optional route-level middleware.
 func (e *Echo) File(path, file string, m ...MiddlewareFunc) *Route {
-	return e.file(path, file, e.GET, m...)
+	return e.GET(path, func(c Context) error {
+		return c.File(file)
+	}, m...)
 }
 
-func (e *Echo) add(host, method, path string, handler HandlerFunc, middleware ...MiddlewareFunc) *Route {
+// Add registers a new route for an HTTP method and path with matching handler
+// in the router with optional route-level middleware.
+func (e *Echo) Add(method, path string, handler HandlerFunc, middleware ...MiddlewareFunc) *Route {
 	name := handlerName(handler)
-	router := e.findRouter(host)
-	router.Add(method, path, func(c Context) error {
+	e.router.Add(method, path, func(c Context) error {
 		h := handler
 		// Chain middleware
 		for i := len(middleware) - 1; i >= 0; i-- {
@@ -508,20 +496,6 @@ func (e *Echo) add(host, method, path string, handler HandlerFunc, middleware ..
 	}
 	e.router.routes[method+path] = r
 	return r
-}
-
-// Add registers a new route for an HTTP method and path with matching handler
-// in the router with optional route-level middleware.
-func (e *Echo) Add(method, path string, handler HandlerFunc, middleware ...MiddlewareFunc) *Route {
-	return e.add("", method, path, handler, middleware...)
-}
-
-// Host creates a new router group for the provided host and optional host-level middleware.
-func (e *Echo) Host(name string, m ...MiddlewareFunc) (g *Group) {
-	e.routers[name] = NewRouter(e)
-	g = &Group{host: name, echo: e}
-	g.Use(m...)
-	return
 }
 
 // Group creates a new router group with prefix and optional group-level middleware.
@@ -596,17 +570,23 @@ func (e *Echo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h := NotFoundHandler
 
 	if e.premiddleware == nil {
-		e.findRouter(r.Host).Find(r.Method, getPath(r), c)
+		e.router.Find(r.Method, getPath(r), c)
 		h = c.Handler()
-		h = applyMiddleware(h, e.middleware...)
+		for i := len(e.middleware) - 1; i >= 0; i-- {
+			h = e.middleware[i](h)
+		}
 	} else {
 		h = func(c Context) error {
-			e.findRouter(r.Host).Find(r.Method, getPath(r), c)
+			e.router.Find(r.Method, getPath(r), c)
 			h := c.Handler()
-			h = applyMiddleware(h, e.middleware...)
+			for i := len(e.middleware) - 1; i >= 0; i-- {
+				h = e.middleware[i](h)
+			}
 			return h(c)
 		}
-		h = applyMiddleware(h, e.premiddleware...)
+		for i := len(e.premiddleware) - 1; i >= 0; i-- {
+			h = e.premiddleware[i](h)
+		}
 	}
 
 	// Execute chain
@@ -625,38 +605,18 @@ func (e *Echo) Start(address string) error {
 }
 
 // StartTLS starts an HTTPS server.
-// If `certFile` or `keyFile` is `string` the values are treated as file paths.
-// If `certFile` or `keyFile` is `[]byte` the values are treated as the certificate or key as-is.
-func (e *Echo) StartTLS(address string, certFile, keyFile interface{}) (err error) {
-	var cert []byte
-	if cert, err = filepathOrContent(certFile); err != nil {
-		return
+func (e *Echo) StartTLS(address string, certFile, keyFile string) (err error) {
+	if certFile == "" || keyFile == "" {
+		return errors.New("invalid tls configuration")
 	}
-
-	var key []byte
-	if key, err = filepathOrContent(keyFile); err != nil {
-		return
-	}
-
 	s := e.TLSServer
 	s.TLSConfig = new(tls.Config)
 	s.TLSConfig.Certificates = make([]tls.Certificate, 1)
-	if s.TLSConfig.Certificates[0], err = tls.X509KeyPair(cert, key); err != nil {
+	s.TLSConfig.Certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
 		return
 	}
-
 	return e.startTLS(address)
-}
-
-func filepathOrContent(fileOrContent interface{}) (content []byte, err error) {
-	switch v := fileOrContent.(type) {
-	case string:
-		return ioutil.ReadFile(v)
-	case []byte:
-		return v, nil
-	default:
-		return nil, ErrInvalidCertOrKeyType
-	}
 }
 
 // StartAutoTLS starts an HTTPS server using certificates automatically installed from https://letsencrypt.org.
@@ -664,7 +624,6 @@ func (e *Echo) StartAutoTLS(address string) error {
 	s := e.TLSServer
 	s.TLSConfig = new(tls.Config)
 	s.TLSConfig.GetCertificate = e.AutoTLSManager.GetCertificate
-	s.TLSConfig.NextProtos = append(s.TLSConfig.NextProtos, acme.ALPNProto)
 	return e.startTLS(address)
 }
 
@@ -783,15 +742,6 @@ func getPath(r *http.Request) string {
 	return path
 }
 
-func (e *Echo) findRouter(host string) *Router {
-	if len(e.routers) > 0 {
-		if r, ok := e.routers[host]; ok {
-			return r
-		}
-	}
-	return e.router
-}
-
 func handlerName(h HandlerFunc) string {
 	t := reflect.ValueOf(h).Type()
 	if t.Kind() == reflect.Func {
@@ -814,14 +764,13 @@ type tcpKeepAliveListener struct {
 }
 
 func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
-	if c, err = ln.AcceptTCP(); err != nil {
-		return
-	} else if err = c.(*net.TCPConn).SetKeepAlive(true); err != nil {
-		return
-	} else if err = c.(*net.TCPConn).SetKeepAlivePeriod(3 * time.Minute); err != nil {
+	tc, err := ln.AcceptTCP()
+	if err != nil {
 		return
 	}
-	return
+	tc.SetKeepAlive(true)
+	tc.SetKeepAlivePeriod(3 * time.Minute)
+	return tc, nil
 }
 
 func newListener(address string) (*tcpKeepAliveListener, error) {
@@ -830,11 +779,4 @@ func newListener(address string) (*tcpKeepAliveListener, error) {
 		return nil, err
 	}
 	return &tcpKeepAliveListener{l.(*net.TCPListener)}, nil
-}
-
-func applyMiddleware(h HandlerFunc, middleware ...MiddlewareFunc) HandlerFunc {
-	for i := len(middleware) - 1; i >= 0; i-- {
-		h = middleware[i](h)
-	}
-	return h
 }

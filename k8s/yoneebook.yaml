@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yoneebook
+  labels:
+    app: yoneebook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: yoneebook
+  template:
+    metadata:
+      labels:
+        app: yoneebook
+    spec:
+      containers:
+        - image: tsongpon/yoneebook
+          name: yoneebook
+          env:
+            - name: DB_PASSWORD
+              value: pingu123
+            - name: DB_HOST
+              value: mysql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yoneebook
+  labels:
+    app: yoneebook
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 5000
+      protocol: TCP
+  selector:
+    app: yoneebook
