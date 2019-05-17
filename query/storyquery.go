@@ -1,6 +1,7 @@
 package query
 
 type StoryQuery struct {
-	Limit  int
-	Offset int
+	Limit        int
+	Offset       int
+	Shortcontent bool
 }

@@ -31,7 +31,8 @@ func (h *StoryHandler) GetStories(c echo.Context) error {
 	var err error
 	limit, err := strconv.Atoi(c.QueryParam("size"))
 	offset, err := strconv.Atoi(c.QueryParam("start"))
-	stories, err := h.service.GetStories(query.StoryQuery{Limit: limit, Offset: offset})
+	shortcontent, err := strconv.ParseBool(c.QueryParam("shortcontent"))
+	stories, err := h.service.GetStories(query.StoryQuery{Limit: limit, Offset: offset, Shortcontent: shortcontent})
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "error")
 	}
