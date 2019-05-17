@@ -29,8 +29,8 @@ func (h *StoryHandler) Ping(c echo.Context) error {
 
 func (h *StoryHandler) GetStories(c echo.Context) error {
 	var err error
-	limit, err := strconv.Atoi(c.QueryParam("limit"))
-	offset, err := strconv.Atoi(c.QueryParam("offset"))
+	limit, err := strconv.Atoi(c.QueryParam("size"))
+	offset, err := strconv.Atoi(c.QueryParam("start"))
 	stories, err := h.service.GetStories(query.StoryQuery{Limit: limit, Offset: offset})
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "error")
