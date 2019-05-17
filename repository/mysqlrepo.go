@@ -20,7 +20,7 @@ func NewMysqlRepository(db *sql.DB) *MysqlRepository {
 func (repo *MysqlRepository) GetStories(query query.StoryQuery) ([]model.Story, error) {
 	stories := []model.Story{}
 	sql := "SELECT id, title, content, author, created_time, modified_time FROM story LIMIT ? OFFSET ?"
-	sqlLimitContent := "SELECT id, title, SUBSTRING(content, 1, 200), author, created_time, modified_time FROM story LIMIT ? OFFSET ?"
+	sqlLimitContent := "SELECT id, title, SUBSTRING(content, 1, 600), author, created_time, modified_time FROM story LIMIT ? OFFSET ?"
 	if query.Shortcontent {
 		sql = sqlLimitContent
 	}
