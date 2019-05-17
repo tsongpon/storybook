@@ -1,6 +1,9 @@
 package repository
 
-import "github.com/tsongpon/yoneebook/model"
+import (
+	"github.com/tsongpon/yoneebook/model"
+	"github.com/tsongpon/yoneebook/query"
+)
 
 type InMemoryStoryRepository struct {
 	storage map[string]model.Story
@@ -12,23 +15,23 @@ func NewInMemoryStoryRepository() *InMemoryStoryRepository {
 	return repo
 }
 
-func (repo *InMemoryStoryRepository) GetStories() ([]*model.Story, error) {
-	result := []*model.Story{}
+func (repo *InMemoryStoryRepository) GetStories(query query.StoryQuery) ([]model.Story, error) {
+	result := []model.Story{}
 	for _, val := range repo.storage {
-		result = append(result, &val)
+		result = append(result, val)
 	}
 	return result, nil
 }
 
 // GetStory return story by given ID
-func (repo *InMemoryStoryRepository) GetStory(ID string) (*model.Story, error) {
+func (repo *InMemoryStoryRepository) GetStory(ID string) (model.Story, error) {
 	if s, ok := repo.storage[ID]; ok {
-		return &s, nil
+		return s, nil
 	}
-	return nil, nil
+	return model.Story{}, nil
 }
 
-func (repo *InMemoryStoryRepository) SaveStory(story *model.Story) (*model.Story, error) {
-	repo.storage[story.ID] = *story
+func (repo *InMemoryStoryRepository) SaveStory(story model.Story) (model.Story, error) {
+	repo.storage[story.ID] = story
 	return story, nil
 }

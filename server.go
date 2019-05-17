@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"net/http"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -9,18 +10,20 @@ import (
 	"github.com/golang-migrate/migrate/database/mysql"
 	_ "github.com/golang-migrate/migrate/source/file"
 
-	"github.com/tsongpon/yoneebook/handler"
 	"github.com/tsongpon/yoneebook/repository"
 	"github.com/tsongpon/yoneebook/service"
+	"github.com/tsongpon/yoneebook/v1/handler"
 
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 )
 
 func main() {
-	dbHost := getenv("DB_HOST", "localhost")
+	dbHost := getEnv("DB_HOST", "localhost")
+	dbUser := getEnv("DB_USER", "root")
+	dbPassword := getEnv("DB_PASSWORD", "pingu123")
 
-	db, err := sql.Open("mysql", "root:pingu123@tcp("+dbHost+":3306)/yoneebook?multiStatements=true")
+	db, err := sql.Open("mysql", dbUser+":"+dbPassword+"@tcp("+dbHost+":3306)/yoneebook?multiStatements=true&parseTime=true")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -47,6 +50,12 @@ func main() {
 
 	e := echo.New()
 	e.Use(middleware.Logger())
+
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},
+	}))
+
 	e.GET("/ping", handler.Ping)
 	e.GET("/v1/stories/:id", handler.GetStory)
 	e.GET("v1/stories", handler.GetStories)
@@ -55,7 +64,7 @@ func main() {
 	e.Logger.Fatal(e.Start(":5000"))
 }
 
-func getenv(key, fallback string) string {
+func getEnv(key, fallback string) string {
 	value := os.Getenv(key)
 	if len(value) == 0 {
 		return fallback

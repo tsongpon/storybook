@@ -2,8 +2,11 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 
-	"github.com/tsongpon/yoneebook/model"
+	"github.com/tsongpon/yoneebook/query"
+	"github.com/tsongpon/yoneebook/v1/mapper"
+	"github.com/tsongpon/yoneebook/v1/transport"
 
 	"github.com/labstack/echo"
 	"github.com/tsongpon/yoneebook/service"
@@ -26,11 +29,21 @@ func (h *StoryHandler) Ping(c echo.Context) error {
 
 func (h *StoryHandler) GetStories(c echo.Context) error {
 	var err error
-	stories, err := h.service.GetStories()
+	limit, err := strconv.Atoi(c.QueryParam("limit"))
+	offset, err := strconv.Atoi(c.QueryParam("offset"))
+	stories, err := h.service.GetStories(query.StoryQuery{Limit: limit, Offset: offset})
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "error")
 	}
-	return c.JSON(http.StatusOK, stories)
+	transports := []transport.StoryTransport{}
+	for _, each := range stories {
+		transports = append(transports, mapper.ToTransport(each))
+	}
+	res := transport.ResponseTransport{}
+	res.Total = len(transports)
+	res.Size = len(transports)
+	res.Data = transports
+	return c.JSON(http.StatusOK, res)
 }
 
 // GetStory handle get story by id http request
@@ -41,18 +54,18 @@ func (h *StoryHandler) GetStory(c echo.Context) error {
 	if err != nil {
 		return c.String(http.StatusInternalServerError, "error")
 	}
-	if story == nil {
+	if story.ID == "" {
 		return c.NoContent(http.StatusNotFound)
 	}
-	return c.JSON(http.StatusOK, story)
+	return c.JSON(http.StatusOK, mapper.ToTransport(story))
 
 }
 
 func (h *StoryHandler) CreateStory(c echo.Context) error {
-	story := new(model.Story)
-	if err := c.Bind(story); err != nil {
+	t := transport.StoryTransport{}
+	if err := c.Bind(&t); err != nil {
 		return err
 	}
-	created, _ := h.service.CreateStory(story)
-	return c.JSON(http.StatusCreated, created)
+	created, _ := h.service.CreateStory(mapper.ToModel(t))
+	return c.JSON(http.StatusCreated, mapper.ToTransport(created))
 }

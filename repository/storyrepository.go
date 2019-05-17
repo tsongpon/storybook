@@ -2,10 +2,11 @@ package repository
 
 import (
 	"github.com/tsongpon/yoneebook/model"
+	"github.com/tsongpon/yoneebook/query"
 )
 
 type StoryRepository interface {
-	GetStory(ID string) (*model.Story, error)
-	SaveStory(story *model.Story) (*model.Story, error)
-	GetStories() ([]*model.Story, error)
+	GetStory(string) (model.Story, error)
+	SaveStory(model.Story) (model.Story, error)
+	GetStories(query.StoryQuery) ([]model.Story, error)
 }
