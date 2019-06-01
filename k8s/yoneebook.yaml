@@ -15,7 +15,7 @@ spec:
         app: yoneebook
     spec:
       containers:
-        - image: tsongpon/yoneebook
+        - image: tsongpon/yoneebook:latest
           name: yoneebook
           env:
             - name: DB_PASSWORD
