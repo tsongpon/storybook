@@ -17,6 +17,7 @@ spec:
       containers:
         - image: tsongpon/yoneebook:latest
           name: yoneebook
+          imagePullPolicy: Always
           env:
             - name: DB_PASSWORD
               value: pingu123
