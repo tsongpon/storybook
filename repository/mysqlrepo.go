@@ -62,3 +62,15 @@ func (repo *MysqlRepository) SaveStory(story model.Story) (model.Story, error) {
 
 	return story, nil
 }
+
+func (repo *MysqlRepository) SaveStoryViewed(e model.StoryViewedEvent) error {
+	sql := "INSERT INTO storyviewed (id, story_id, time, user_agent) VALUES (?, ?, ?, ?)"
+	stmt, err := repo.db.Prepare(sql)
+	if err != nil {
+		panic(err.Error())
+	}
+	defer stmt.Close()
+	stmt.Exec(e.ID, e.StoryID, e.Time, e.UserAgent)
+
+	return nil
+}

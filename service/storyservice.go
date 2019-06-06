@@ -1,6 +1,7 @@
 package service
 
 import (
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,4 +44,13 @@ func (service *StoryService) CreateStory(story model.Story) (model.Story, error)
 	story.ModifiedTime = &now
 	s, _ := service.repo.SaveStory(story)
 	return s, nil
+}
+
+func (service *StoryService) SaveStoryViewed(storyID string, userAgent string) error {
+	e := model.StoryViewedEvent{ID: uuid.New().String(), StoryID: storyID, UserAgent: userAgent, Time: time.Now()}
+	err := service.repo.SaveStoryViewed(e)
+	if err != nil {
+		log.Printf("save event error")
+	}
+	return nil
 }

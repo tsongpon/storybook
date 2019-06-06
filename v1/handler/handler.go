@@ -58,6 +58,7 @@ func (h *StoryHandler) GetStory(c echo.Context) error {
 	if story.ID == "" {
 		return c.NoContent(http.StatusNotFound)
 	}
+	h.service.SaveStoryViewed(id, c.Request().Header.Get("User-Agent"))
 	return c.JSON(http.StatusOK, mapper.ToTransport(story))
 
 }
